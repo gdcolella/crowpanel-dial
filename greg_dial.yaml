@@ -1,0 +1,7 @@
+esphome:
+  compile_process_limit: 1
+
+packages:
+  hardware: !include hardware.yaml
+  bindings: !include bindings.yaml
+  ui: !include ui2.yaml

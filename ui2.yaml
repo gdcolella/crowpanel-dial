@@ -1,0 +1,68 @@
+font:
+  - file: "gfonts://Roboto"
+    id: font_large
+    size: 32
+  - file: "gfonts://Roboto"
+    id: font_medium
+    size: 24
+
+lvgl:
+  pages: 
+    - id: volume_page
+      bg_color: 0x000000
+      pad_all: 0
+      widgets:
+        - meter:
+            id: vol_meter
+            width: 240
+            height: 240
+            align: CENTER
+            # FORCE THE METER BACKGROUND TO BE TRANSPARENT OR BLACK
+            bg_opa: TRANSP
+            border_width: 0
+            scales:
+              - range_from: 0
+                range_to: 100
+                rotation: 120
+                angle_range: 300
+                ticks:
+                  count: 41
+                  width: 2
+                  length: 12
+                  color: 0xFFFFFF  # WHITE TICKS
+                indicators:
+                  - line:
+                      id: vol_meter_arc
+                      width: 2
+                      color: 0xFF0000
+                      r_mod: -4
+        - label:
+            id: vol_text
+            text: "20%"
+            align: CENTER
+            text_color: 0xFFFFFF
+    - id: menu_page
+      bg_color: 0x000000
+      widgets:
+        - roller:
+            id: action_menu
+            options:
+              - "Adjust Volume"
+              - "Turn Off Lights"
+              - "Turn Off TV"
+              - "Back"
+
+            bg_opa: TRANSP
+            border_width: 0
+            outline_width: 0
+
+            align: CENTER
+            width: 240
+            height: 240
+            text_color: 0xAAAAAA
+            selected:
+              text_font: font_large
+              text_color: 0xFFAA00
+              bg_opa: TRANSP
+            # Make it look "infinite" for the round screen
+            mode: normal

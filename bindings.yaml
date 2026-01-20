@@ -1,0 +1,144 @@
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - wait_until:
+          api.connected:
+      # Sync current state from Home Assistant on startup
+      - homeassistant.service:
+          service: homeassistant.update_entity
+          data:
+            entity_id: input_number.greg_dial
+
+globals:
+  - id: current_vol
+    type: float
+    restore_value: yes
+    initial_value: '0.2'
+  - id: menu_mode
+    type: bool
+    initial_value: 'false' # False = Volume, True = Menu
+
+script:
+  - id: button_press
+    then:
+        - lambda: 'id(menu_mode) = !id(menu_mode);'
+        - if:
+            condition:
+              lambda: 'return id(menu_mode);'
+            then:
+              - lvgl.page.show: menu_page
+            else:
+              - if:
+                  condition:
+                    lambda: 'return id(action_menu).get_selected_text() != "Back";'
+                  then:
+                    - homeassistant.event:
+                        event: esphome.dial_menu_execution
+                        data:
+                          selected_text: !lambda "return id(action_menu).get_selected_text();"
+              - lvgl.page.show: volume_page
+              - lvgl.roller.update:
+                  id: action_menu
+                  selected_index: 0
+                            
+  - id: on_knob_turn
+    parameters:
+      x: float
+    mode: restart # This is critical: it prevents "lag" by canceling old runs
+    then:
+      - if:
+          condition:
+            # Check if Menu Mode is ACTIVE
+            lambda: 'return id(menu_mode);'
+          then:
+            # --- MENU LOGIC ---
+            - lvgl.roller.update:
+                id: action_menu
+                selected_index: !lambda |-
+                  // Get the raw LVGL object and count the options
+                  auto count = id(action_menu).get_options().size();
+                  if (count <= 0) return 0;
+                  
+                  // 3. Perform the modulo
+                  // We cast to int and ensure it stays positive
+                  int val = (int)x;
+                  int index = val % count;
+                  if (index < 0) index += count; // Handle negative rotation if needed
+                  
+                  return index;
+          else:
+            # --- VOLUME LOGIC ---
+            - globals.set:
+                id: current_vol
+                value: !lambda "return x / 100.0;"
+            - homeassistant.service:
+                service: input_number.set_value
+                data:
+                  entity_id: input_number.greg_dial
+                  value: !lambda "return (int)x;"
+            - component.update: vol_truth
+
+sensor:
+  # The "Watcher" - Bridges the Global Variable to the LVGL widgets
+  - platform: template
+    id: vol_truth
+    internal: true 
+    lambda: |-
+      return id(current_vol) * 100.0;
+    on_value:
+      then:
+        - lvgl.indicator.update:
+            id: vol_meter_arc
+            value: !lambda "return (int)x;"
+        - lvgl.label.update:
+            id: vol_text
+            text: !lambda 'return str_sprintf("%d%%", (int)x);'
+        - lambda: |-
+            // 1. Sync the global variable (for the needle)
+            id(current_vol) = x / 100.0;
+
+            // 2. Sync the physical hardware counter
+            // We cast to int because encoder values are whole numbers
+            auto actual_ha_value = (int)x;
+            
+            // Only update if the difference is more than 1 to avoid 
+            // the hardware and software "echoing" each other
+            if (abs((int)id(knob).state - actual_ha_value) > 1) {
+              id(knob).set_value(actual_ha_value);
+            }
+
+  # THE INBOUND: Mirroring the HA Helper back to the dial
+  - platform: homeassistant
+    id: ha_dial_proxy
+    entity_id: input_number.greg_dial
+    on_value:
+      then:
+        - globals.set:
+            id: current_vol
+            value: !lambda "return x / 100.0;"
+        - component.update: vol_truth
+
+text_sensor:
+  - platform: homeassistant
+    id: menu_options_raw
+    entity_id: sensor.dial_options_txt
+    on_value:
+      then:
+        - lambda: |-
+            std::string s = x;
+            std::string delimiter = "|";
+            std::vector<std::string> options_list;
+            
+            size_t pos = 0;
+            std::string token;
+            while ((pos = s.find(delimiter)) != std::string::npos) {
+                token = s.substr(0, pos);
+                options_list.push_back(token);
+                s.erase(0, pos + delimiter.length());
+            }
+            options_list.push_back(s); // Add the last remaining item
+            options_list.push_back("Back");
+
+            id(action_menu).set_options(options_list);
+            //id(action_menu).set_mode(LV_ROLLER_MODE_INFINITE);

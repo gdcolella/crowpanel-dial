@@ -1,0 +1,72 @@
+lvgl:
+  pages:
+    - id: clock_page
+      widgets:
+        - obj: # clock container
+            height: 240
+            width: 240
+            align: CENTER
+            pad_all: 0
+            border_width: 0
+            bg_color: 0x000000 # black
+            widgets:
+              - meter: # clock face
+                  height: 240
+                  width: 240
+                  align: CENTER
+                  bg_opa: TRANSP
+                  border_width: 0
+                  text_color: 0xFFFFFF # white
+                  scales:
+                    - range_from: 0 # minutes scale
+                      range_to: 60
+                      angle_range: 360
+                      rotation: 270
+                      ticks:
+                        width: 1
+                        count: 61
+                        length: 10
+                        color: 0xFFFFFF # white
+                      indicators:
+                        - line:
+                            id: minute_hand
+                            width: 3
+                            color: 0xFF0000 # Red
+                            r_mod: -4
+                            value: 0
+                    - range_from: 1 # hours scale for labels
+                      range_to: 12
+                      angle_range: 330
+                      rotation: 300
+                      ticks:
+                        width: 1
+                        count: 12
+                        length: 1
+                        major:
+                          stride: 1
+                          width: 4
+                          length: 10
+                          color: 0xC0C0C0 # silver
+                          label_gap: 12
+                    - range_from: 0 # hi-res hours scale for hand
+                      range_to: 720
+                      angle_range: 360
+                      rotation: 270
+                      ticks:
+                        count: 0
+                      indicators:
+                        - line:
+                            id: hour_hand
+                            width: 5
+                            color: 0xFF0000 # Red
+                            r_mod: -30
+                            value: 0
+              - label:
+                  styles: date_style
+                  id: day_label
+                  y: -30
+              - label:
+                  id: date_label
+                  styles: date_style
+                  y: 30
+

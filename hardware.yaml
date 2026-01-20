@@ -1,0 +1,212 @@
+esphome:
+  name: elecrowrotary128-inch
+  platformio_options:
+    build_flags: "-DBOARD_HAS_PSRAM"
+    board_build.esp-idf.memory_type: qio_opi
+    board_build.flash_mode: dio
+  friendly_name: Rotary1.28-inch
+  on_boot:
+    priority: 800
+    then:
+      - logger.log: "Backlight ON"
+      - output.turn_on: gpio_3_backlight_pwm
+      - delay: 200ms
+      - output.turn_off: power_light
+      - output.turn_on: out1
+      - output.turn_on: out2
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+    version: recommended
+
+# Enable logging
+logger:
+  level: VERY_VERBOSE
+
+# Enable Home Assistant API
+api:
+  id: ha_api
+  encryption:
+    key: !secret ha_api_password
+
+ota:
+  - platform: esphome
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "ESP Hotspot"
+    password: !secret backup_password
+
+psram:
+  mode: octal
+  speed: 80MHz 
+
+time:
+  - platform: homeassistant
+    timezone: "America/New_York"
+    id: esptime
+
+output:
+  - platform: ledc
+    pin: GPIO46
+    id: gpio_3_backlight_pwm
+  - platform: gpio
+    id: power_light
+    pin: GPIO40
+    # inverted: true
+  - platform: gpio
+    id: out4
+    pin: GPIO4
+  - platform: gpio
+    id: out12
+    pin: GPIO12
+  - platform: gpio
+    id: out1
+    pin: GPIO1
+  - platform: gpio
+    id: out2
+    pin: GPIO2
+
+light:
+  - platform: monochromatic
+    name: "Backlight"
+    output: gpio_3_backlight_pwm
+    id: back_light
+    restore_mode: ALWAYS_ON
+
+sensor:
+  - platform: rotary_encoder
+    id: knob
+    name: "Encoder"
+    pin_a:
+      number: 45
+      mode:
+        input: true
+        pullup: true
+    pin_b:
+      number: 42
+      mode:
+        input: true
+        pullup: true
+    resolution: 1
+    min_value: -100000
+    max_value:  100000
+    on_value:
+      then:
+        - script.execute:
+            id: on_knob_turn
+            x: !lambda "return x;"
+
+binary_sensor:
+  - platform: touchscreen
+    id: change_page # Name is not needed, ID is sufficient
+    # This zone now covers the entire 240x240 screen
+    x_min: 0
+    y_min: 0
+    x_max: 240
+    y_max: 240
+    on_press:
+      - script.execute: screentime
+  - platform: gpio
+    pin: 41
+    id: rotary_button
+    on_press:
+      then:
+        - script.execute:
+            id: button_press
+
+script:
+  - id: screentime
+    mode: restart
+    then:
+      - light.turn_on: back_light
+      - delay: 1 min
+      - light.turn_off: back_light
+  - id: dim_screen
+    then:
+      - light.turn_on:
+          id: back_light
+          brightness: 30%
+      - logger.log: "script: dim to 30%"
+  - id: bright_screen
+    then:
+      - light.turn_on:
+          id: back_light
+          brightness: 100%
+      - logger.log: "script: brightness to full"
+
+i2c:
+  - id: i2c_touch
+    setup_priority: 400
+    sda: 6
+    scl: 7
+    scan: true
+    frequency: 400kHz
+  
+
+touchscreen:
+  platform: cst816
+  id: touch
+  address: 0x15
+  interrupt_pin: 5
+  reset_pin: 13
+  i2c_id: i2c_touch
+  transform:
+    mirror_x: false
+    mirror_y: true
+    swap_xy: true
+
+
+spi:
+  id: spi_bus
+  mosi_pin: 11
+  clk_pin: 10
+
+font:
+  - file: "gfonts://Roboto"
+    id: roboto16
+    size: 16
+
+display:
+  - platform: ili9xxx
+    id: round_display
+    model: GC9A01A
+    cs_pin: GPIO9
+    dc_pin: GPIO3
+    reset_pin: GPIO14
+    invert_colors: true
+    show_test_card: true 
+    rotation: 0
+
+      
+#external_components:
+#  - source: 
+#      type: local
+#      path: components
+#    components: [gc9a01a_display]
+lvgl:
+  displays:
+    - round_display
+  default_font: roboto16
+  disp_bg_color: black
+
+  touchscreens:
+    touchscreen_id: touch
+
+  style_definitions:
+    - id: date_style    
+      text_font: unscii_8
+      align: center
+      text_color: 0x000000
+      bg_opa: cover
+      radius: 4
+      pad_all: 2
+
+
+captive_portal:
