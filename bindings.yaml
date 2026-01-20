@@ -38,6 +38,9 @@ script:
                         data:
                           selected_text: !lambda "return id(action_menu).get_selected_text();"
               - lvgl.page.show: volume_page
+              - sensor.rotary_encoder.set_value:
+                  id: knob
+                  value: !lambda "return (int)(id(current_vol) * 100);"
               - lvgl.roller.update:
                   id: action_menu
                   selected_index: 0

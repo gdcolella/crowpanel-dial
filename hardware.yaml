@@ -79,6 +79,7 @@ light:
     output: gpio_3_backlight_pwm
     id: back_light
     restore_mode: ALWAYS_ON
+    internal: true
 
 sensor:
   - platform: rotary_encoder
