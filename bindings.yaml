@@ -18,6 +18,9 @@ globals:
   - id: menu_mode
     type: bool
     initial_value: 'false' # False = Volume, True = Menu
+  - id: sync_turns
+    type: bool
+    initial_value: 'true'
 
 script:
   - id: button_press
@@ -28,6 +31,9 @@ script:
               lambda: 'return id(menu_mode);'
             then:
               - lvgl.page.show: menu_page
+              - globals.set:
+                  id: sync_turns
+                  value: 'false'
             else:
               - if:
                   condition:
@@ -44,6 +50,9 @@ script:
               - lvgl.roller.update:
                   id: action_menu
                   selected_index: 0
+              - globals.set:
+                  id: sync_turns
+                  value: 'true'
                             
   - id: on_knob_turn
     parameters:
@@ -75,11 +84,15 @@ script:
             - globals.set:
                 id: current_vol
                 value: !lambda "return x / 100.0;"
-            - homeassistant.service:
-                service: input_number.set_value
-                data:
-                  entity_id: input_number.greg_dial
-                  value: !lambda "return (int)x;"
+            - if:
+                condition:
+                  lambda: 'return id(sync_turns);'
+                then:
+                  - homeassistant.service:
+                      service: input_number.set_value
+                      data:
+                        entity_id: input_number.greg_dial
+                        value: !lambda "return (int)x;"
             - component.update: vol_truth
 
 sensor:
@@ -97,19 +110,6 @@ sensor:
         - lvgl.label.update:
             id: vol_text
             text: !lambda 'return str_sprintf("%d%%", (int)x);'
-        - lambda: |-
-            // 1. Sync the global variable (for the needle)
-            id(current_vol) = x / 100.0;
-
-            // 2. Sync the physical hardware counter
-            // We cast to int because encoder values are whole numbers
-            auto actual_ha_value = (int)x;
-            
-            // Only update if the difference is more than 1 to avoid 
-            // the hardware and software "echoing" each other
-            if (abs((int)id(knob).state - actual_ha_value) > 1) {
-              id(knob).set_value(actual_ha_value);
-            }
 
   # THE INBOUND: Mirroring the HA Helper back to the dial
   - platform: homeassistant
@@ -121,6 +121,21 @@ sensor:
             id: current_vol
             value: !lambda "return x / 100.0;"
         - component.update: vol_truth
+        - lambda: |-
+            // 1. Sync the global variable (for the needle)
+            id(current_vol) = x / 100.0;
+
+            // 2. Sync the physical hardware counter
+            // We cast to int because encoder values are whole numbers
+            auto actual_ha_value = (int)x;
+            
+            // Only update if the difference is more than 1 to avoid 
+            // the hardware and software "echoing" each other
+            id(sync_turns) = false;
+            if (abs((int)id(knob).state - actual_ha_value) > 1) {
+              id(knob).set_value(actual_ha_value);
+            }
+            id(sync_turns) = true;
 
 text_sensor:
   - platform: homeassistant
